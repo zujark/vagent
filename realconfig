@@ -1,0 +1,86 @@
+package kt.gmon.agent;
+
+
+import javax.sql.DataSource;
+
+import kt.gmon.agent.util.CryptUtil;
+
+import org.apache.commons.dbcp.BasicDataSource;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.*;
+import org.springframework.context.support.PropertySourcesPlaceholderConfigurer;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.scheduling.annotation.*;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.scheduling.config.ScheduledTaskRegistrar;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
+
+@Configuration
+@EnableScheduling
+@ComponentScan("kt.gmon.agent")
+@EnableTransactionManagement
+@PropertySource({"classpath:real/mondb.properties","classpath:real/conf.properties"})
+public class AppConfiguration implements SchedulingConfigurer {
+
+	@Value("${batch.jdbc.driver}")
+	private String driverClassName;
+
+	@Value("${batch.jdbc.url}")
+	private String driverUrl;
+
+	@Value("${batch.jdbc.user}")
+	private String driverUsername;
+
+	@Value("${batch.jdbc.password}")
+	private String driverPassword;
+
+	@Value("${task.max}")
+	private int MAX_TASK;	
+	
+	@Value("${agent.secretkey}")
+	private String SecretKey;	
+	
+	@Bean static PropertySourcesPlaceholderConfigurer placeholderConfigurer() { 
+	    return new PropertySourcesPlaceholderConfigurer(); 
+	}
+	
+	@Bean
+	public DataSource dataSource() {
+		System.out.println(" real ########## db server url = "+ driverUrl);
+		BasicDataSource dataSource = new BasicDataSource();
+		dataSource.setDriverClassName(driverClassName);
+		dataSource.setUrl(driverUrl);
+		dataSource.setUsername(CryptUtil.decrypt(SecretKey.substring(0, 16), driverUsername));
+		dataSource.setPassword(CryptUtil.decrypt(SecretKey.substring(0, 16), driverPassword));
+		return dataSource;
+	}
+
+
+    @Bean
+    public JdbcTemplate jdbcTemplate() {
+        return new JdbcTemplate(dataSource());
+    }
+    
+	@Bean
+	@Primary
+	public PlatformTransactionManager transactionManager() {
+		return new DataSourceTransactionManager(dataSource());
+	}
+
+	
+	@Bean 
+	public ThreadPoolTaskScheduler taskScheduler() {
+		ThreadPoolTaskScheduler poolScheduler = new ThreadPoolTaskScheduler();
+		poolScheduler.setPoolSize(MAX_TASK);
+		return poolScheduler; 
+	}
+ 
+	@Override 
+	public void configureTasks(ScheduledTaskRegistrar taskRegistrar) {
+		taskRegistrar.setScheduler(taskScheduler()); 
+	} 
+
+	 
+}
