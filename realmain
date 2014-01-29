@@ -1,0 +1,50 @@
+package kt.gmon.agent;
+
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+
+public class AgentRealMain {
+
+	
+	public static void main(String[] args) {
+		//final AbstractApplicationContext context =
+		//		new ClassPathXmlApplicationContext("classpath:/launch-context.xml");
+
+		 AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(AppConfiguration.class);		   
+		 //ctx.register(AgentRealConfiguration.class);
+		 //ctx.refresh();
+
+	       
+		// ApplicationContext ctx = SpringApplication.run(AppConfiguration.class, args);
+		 
+//		BatchManager batchManager =context.getBean(BatchManager.class);
+//		ThreadPoolTaskScheduler scheduler = (ThreadPoolTaskScheduler) context.getBean("scheduler");
+//		scheduler.scheduleAtFixedRate(batchManager, 5000);
+
+	}
+}
+Enter file contents herepackage kt.gmon.agent;
+
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+
+public class AgentRealMain {
+
+	
+	public static void main(String[] args) {
+		//final AbstractApplicationContext context =
+		//		new ClassPathXmlApplicationContext("classpath:/launch-context.xml");
+
+		 AnnotationConfigApplicationContext ctx = new AnnotationConfigApplicationContext(AppConfiguration.class);		   
+		 //ctx.register(AgentRealConfiguration.class);
+		 //ctx.refresh();
+
+	       
+		// ApplicationContext ctx = SpringApplication.run(AppConfiguration.class, args);
+		 
+//		BatchManager batchManager =context.getBean(BatchManager.class);
+//		ThreadPoolTaskScheduler scheduler = (ThreadPoolTaskScheduler) context.getBean("scheduler");
+//		scheduler.scheduleAtFixedRate(batchManager, 5000);
+
+	}
+}
