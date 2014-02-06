@@ -1,0 +1,136 @@
+package kt.gmon.agent.schedule;
+
+import java.util.Enumeration;
+import java.util.Hashtable;
+import java.util.List;
+import java.util.concurrent.ScheduledFuture;
+
+import javax.annotation.PostConstruct;
+
+import kt.gmon.agent.conf.FileConfig;
+import kt.gmon.agent.conf.ManagerDbConf;
+import kt.gmon.agent.dao.AgentBatchDao;
+import kt.gmon.agent.dao.gmon.BatchDao;
+import kt.gmon.agent.dao.gmon.BatchResultDao;
+import kt.gmon.agent.domain.VarDef;
+import kt.gmon.agent.dto.gmon.BatchDto;
+import kt.gmon.agent.manager.WorkerFactory;
+import kt.gmon.agent.worker.BatchWorker;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Scope;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.scheduling.support.CronTrigger;
+import org.springframework.stereotype.Component;
+
+import com.sun.corba.se.spi.orbutil.threadpool.Work;
+
+@Component
+@Scope("singleton")
+public class DbBatchManager extends WorkManager implements Runnable {
+
+	private Logger log = LoggerFactory.getLogger(DbBatchManager.class);
+	
+	@Autowired
+	private ThreadPoolTaskScheduler scheduler;
+	
+	@Autowired
+	WorkerFactory taskFactory;
+	
+	@Autowired
+	private BatchDao batchDao;
+	
+	@Autowired
+	ManagerDbConf dbConf;
+	
+	private int INIT=0;
+	
+	@PostConstruct
+	private void init(){
+		init_Manager();
+	}
+	
+	public void run(){
+		System.out.println("########### Batch.agent_id = " + dbConf.getAgent_id());
+
+		if(!dbConf.getupIsChanged(VarDef.BATCH_ONLY_CHANGE) && INIT > 0) return;
+		INIT=1;
+		
+		try{
+			List<BatchDto> batchs =  batchDao.list(dbConf.getAgent_id());  // 배치변경 여부 확인하고 목록 수집
+			removeAll(); // 초기화
+
+	        if(batchs !=  null)
+	        	for (BatchDto work : batchs) {        		
+	        		BatchWorker worker = taskFactory.getBatchWorker();        		
+	        		worker.initConf(work);
+	        		startWork(worker);
+	        	}
+		}catch(Exception e){
+			e.printStackTrace();
+			log.error(e.getMessage(), e);
+		}
+		
+	}
+	
+	@Override
+	ThreadPoolTaskScheduler getScheduler() {
+		return scheduler;
+	}	
+		
+}
+
+package kt.gmon.agent.schedule;
+
+import kt.gmon.agent.dto.gmon.BatchDto;
+import kt.gmon.agent.dto.gmon.TaskDto;
+
+import org.springframework.scheduling.Trigger;
+
+public abstract class GmonWorker implements Runnable {
+
+	protected TaskDto taskConf;
+	
+	
+	public void initConf(TaskDto taskConf){
+		this.taskConf = taskConf;
+	}
+	
+	public boolean isValidTime(){
+		return taskConf.isValidTime();
+	}
+	
+	public String getKeyId() {
+		return String.valueOf(taskConf.getTaskId() + "@"+ taskConf.getCommand_id());
+	}
+
+	public String getPeriodType() {
+		return taskConf.getPeriodType();
+	}
+
+	public int getRepUnit() {
+		return taskConf.getRepUnit();
+	}
+
+	public Trigger makeCron() {
+		return taskConf.makeCron();
+	}
+
+	//-------- get/set -------------
+	public TaskDto getSchedule() {
+		return taskConf;
+	}
+
+	public void setSchedule(TaskDto schedule) {
+		this.taskConf = schedule;
+	}
+
+	
+}
+
+
+
+
+
