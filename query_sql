@@ -1,0 +1,175 @@
+Enter file contents herepackage kt.gmon.agent.domain;
+
+public interface VarGmonSql {
+
+	// ---------- gmon 설정 정보
+	public final static String TASK_SQL = 
+		" select agent_id, agent_task_type_cd, conn_id, task_id, "
+		+"  case agent_task_type_cd when 'DBUSE' then db_chg_flg "
+		+"    when 'SQL' then sql_chg_flg "
+		+"    when 'SYS' then sys_chg_flg "
+		+"    when 'BATCH' then batch_chg_flg else 'N' end as chg_flag "
+		+"from m_agent ag, "
+		+"  (select agent_id, agent_task_type_cd, conn_id, min(row_id) task_id from M_AGENT_TASK where agent_id=? and active_flg='Y' "
+		+"  group by agent_id, agent_task_type_cd, conn_id) t "
+		+"  where t.agent_id= ag.server_id(+) ";
+
+	public static final String CONF_SQL = "select c.row_id conf_id, connect_driver driver_class, url driver_url, "
+			+ "username driver_user, password driver_pass, batch_period, sys_period, sql_period, db_period, svc_period "
+			+ " from M_AGENT a, M_CONNECT c where a.server_id = c.server_id and a.server_id = ? ";
+	
+	public static final String WORK_CHG_SQL ="call HASCHANGE_WORK(?, ?, ?)";
+	
+	//--- 배치 ---------
+	public final static String INSERT_BATCH_RESULT=			
+			"MERGE INTO M_AGENT_RESULT USING DUAL ON (TASK_ID=? AND KEYVAL=? AND TASK_SEQ=?) "+
+			" WHEN NOT MATCHED THEN "+
+			"  INSERT(  ROW_KEY, CREATED" +
+			"		 , TASK_ID, NAME, REPORT_DT, TASK_DT, TASK_SEQ" +
+			"		 , SUCCESS_FLG, START_DT, END_DT, TOTAL_CNT, SUCCESS_CNT" +
+			"		 , FAIL_CNT, WAIT_CNT, COMMENTS, ATTRIB_01, ATTRIB_02" +
+			"		 , ATTRIB_03, ATTRIB_04, ATTRIB_05, ATTRIB_06, ATTRIB_07" +
+			"		 , ATTRIB_08, ATTRIB_09, KEYVAL, AGT_HOSTNAME " +
+			" ) VALUES (" +
+			"		   ?, SYSDATE " +
+			"        , ?,?,?,?,? ,?,?,?,?,? ,?,?,?,?,?, ?,?,?,?,? ,?,?,?,? ) "+
+			"WHEN MATCHED THEN "+
+			"  UPDATE SET SUCCESS_FLG=?, START_DT=? ,END_DT=? ,TOTAL_CNT=? ,SUCCESS_CNT=? " +
+			"	        , FAIL_CNT=?, WAIT_CNT=?, COMMENTS=?, ATTRIB_01=? ,ATTRIB_02=? " +
+			"			, ATTRIB_03=?, ATTRIB_04=?, ATTRIB_05=?, ATTRIB_06=?, ATTRIB_07=? " +
+			"			, ATTRIB_08=? ,ATTRIB_09=?, last_upd=sysdate, modification_num= modification_num+1 ";
+
+	
+	public final static String BATCH_WORK_SQL = 
+			" select t.row_id task_id, m.row_id command_id, t.conn_id, m.name, repeat_type_cd cycle_type, "
+			+"  repeat_unit cycle_unit, to_char(t.start_dt,'YYYYMMDD') sdate, to_char(t.end_dt,'YYYYMMDD') edate, " 
+			+"  to_char(t.repeat_start_tm,'HH24MI') stime, to_char(t.repeat_end_tm,'HH24MI') etime, "
+			+"  m.command search_sql, t.created "
+			+"from m_agent_task t, m_agent_command m "
+			+"where t.row_id = m.task_id and t.agent_task_type_cd in ('BATCH','INF','CONSY') " 
+			+"  and t.active_flg= 'Y' and m.active_flg='Y' and agent_id=? ";
+
+	public static final String RESET_TASK = 
+			" update m_agent set batch_chg_flg='N' "
+			 +" ,task_chg_flg='N', db_chg_flg='N', sql_chg_flg='N', sys_chg_flg='N' where server_id =? ";
+
+	public static final String AGENT_TASK_SQL = 
+			"select t.agent_id, c.task_id, c.row_id command_id, t.agent_task_type_cd, t.conn_id, c.name, c.command, c.command_type_cd, "
+			+"  repeat_type_cd cycle_type, "
+			+"  repeat_unit cycle_unit, to_char(t.start_dt,'YYYYMMDD') sdate, to_char(t.end_dt,'YYYYMMDD') edate, " 
+			+"  to_char(t.repeat_start_tm,'HH24MI') stime, to_char(t.repeat_end_tm,'HH24MI') etime "
+			+" from m_agent_task t,  m_agent_command c "
+			+" where t.row_id = c.task_id(+) and t.row_id=? and rownum <=1 ";
+	
+	public static final String AGENT_TASK_LIST_SQL = 
+			"select t.agent_id, c.task_id, c.row_id command_id, t.agent_task_type_cd, t.conn_id, c.name, c.command, c.command_type_cd, "
+			+"  repeat_type_cd cycle_type, "
+			+"  repeat_unit cycle_unit, to_char(t.start_dt,'YYYYMMDD') sdate, to_char(t.end_dt,'YYYYMMDD') edate, " 
+			+"  to_char(t.repeat_start_tm,'HH24MI') stime, to_char(t.repeat_end_tm,'HH24MI') etime "
+			+" from m_agent_task t,  m_agent_command c "
+			+" where t.row_id = c.task_id and t.agent_id= ? and t.agent_task_type_cd=? ";	
+
+	public static final String LoadSQL_SQL=" select command_type_cd qkind, command sqlquery, long_limit, c.created from M_AGENT_COMMAND c, M_AGENT_TASK t "+
+			" where c.task_id = t.row_id and agent_task_type_cd = ? and t.conn_id=? and t.agent_id=? and c.active_flg='Y' ";	
+
+	public static final String FINDSQL_SQL=" select command_type_cd qkind, command sqlquery, long_limit, c.created from M_AGENT_COMMAND c, M_AGENT_TASK t "+
+			" where c.task_id = t.row_id and c.command_type_cd=? and t.conn_id=? and t.agent_id=? and c.active_flg='Y' ";	
+	
+	// table, tablespace 사용량
+	public static final String INSERT_TAB_SQL = "INSERT INTO M_TABLE ( " +
+			"  ROW_ID, CREATED, REPORT_DT, TABLE_TYPE" +
+			", SERVER_ID, TASK_ID, NAME, TABLE_SIZE, AGT_HOSTNAME" +
+			", ATTRIB_01, ATTRIB_07)" + 
+			"  VALUES  ( " +
+			" TABLE_SEQ.NEXTVAL, SYSDATE, ?, 'TAB'" +
+			", ?, ?, ?, ?, ? " +
+			", ?, ?)"; 
+
+	public static final String INSERT_TABSP_SQL = "INSERT INTO M_TABLE ( " +
+			" ROW_ID, CREATED, REPORT_DT, TABLE_TYPE, " +
+			" SERVER_ID, TASK_ID, NAME, TABLE_SIZE, AGT_HOSTNAME" + 
+			" ) VALUES  ( " +
+			"  TABLE_SEQ.NEXTVAL, SYSDATE, ?, 'TABLESPACE'" +
+			", ?, ?, ?, ?, ?)"; 
+	
+	// ------ error log 
+	public static final String ADD_ERRLOG_Sql = 
+			"insert into m_error_log(created, server_cd, message, class_name, method_name, line_num, except_name, details, "
+			+ " thread_name, server_id, agt_hostname) "
+			+ " values(?,?,?,?,?, ?,?,?,?,?, ? )";
+	
+	
+	//----------- sql session
+	public static final String ADD_LONG_Sql = 
+			" MERGE INTO M_DB_SESSION USING DUAL ON (hash_pk=? and server_id=? ) " +
+			" WHEN NOT MATCHED THEN " +
+			" 	INSERT( row_key, CREATED" +
+			"         , BACKEND_START, SESSION_TIME, USERNAME, APPLICATION, CLIENT_IP" +
+			"         , CLIENT_NAME, WAITING, QUERY_START, STATE_CHANGE, XACT_START" +
+			"         , STATE, SQL_HASH, MODIFICATION_NUM, SERVER_ID, TASK_ID" +
+			"         , pid, HASH_PK, AGT_HOSTNAME, report_dt " +
+			" ) VALUES ( ?, SYSDATE" +
+			"         , ?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,?, trunc(sysdate))" +
+			" WHEN MATCHED THEN " +
+			"  UPDATE SET SESSION_TIME = ?, BATCH_FLG='Y', last_upd=sysdate, MODIFICATION_NUM = MODIFICATION_NUM + 1 "; 
+
+	public static final String MOD_NCLOB_LONG_SQL = 
+			" UPDATE M_DB_SESSION SET query=? where server_id=? and hash_pk=? and batch_flg='N' ";
+	
+	public static final String ADD_TEXT_SQL = 
+			" MERGE INTO M_DB_query USING DUAL ON (row_key=?) " +
+			" WHEN NOT MATCHED THEN " +
+			" 	INSERT(created, row_key, query) VALUES (sysdate, ?, ?)"+
+			" WHEN MATCHED THEN " +
+			"  UPDATE SET last_upd=sysdate, MODIFICATION_NUM = MODIFICATION_NUM + 1 "; 
+	
+	public static final String ADD_LOCK_Sql = 
+			 " MERGE INTO M_DB_SESSION USING DUAL ON (hash_pk=? and server_id=? ) " +
+			 " WHEN NOT MATCHED THEN " +
+			 " 	INSERT ( ROW_KEY, CREATED" +
+			 "         , QUERY_START, STATE, USERNAME, APPLICATION, CLIENT_IP" +
+			 "         , CLIENT_NAME, SQL_HASH, SESSION_TIME, BLOCKING_MODE, BLOCKING_QUERY_START" +
+			 "         , BLOCKING_QUERY_TIME, BLOCKING_USERNAME, BLOCKING_APPLICATION, BLOCKING_CLIENT_IP, BLOCKING_CLIENT_NAME" +
+			 "         , BLOCKING_SQL_HASH, SERVER_ID, TASK_ID, pid, blocking_pid, HASH_PK, AGT_HOSTNAME, report_dt " +
+			 " ) VALUES ( ?, SYSDATE " +
+			 "         , ?,?,?,?,? ,?,?,?,?,?, ?,?,?,?,?, ?,?,?,?,?, ?,?,trunc(sysdate))" +
+			 " WHEN MATCHED THEN " +
+				"  UPDATE SET SESSION_TIME = ?, BATCH_FLG='Y', MODIFICATION_NUM = MODIFICATION_NUM + 1 "; 
+
+	public static final String MOD_NCLOB_LOCK_SQL = 
+			" UPDATE M_DB_SESSION SET query=? , blocking_query=? where server_id=? and hash_pk=? and batch_flg='N' ";
+	
+	//----- web app
+	public static final String INSERT_WEBTEST=
+			" insert into M_SERVICE_RESULT(row_id, svc_type_cd, created, task_id, server_id, report_dt, success_flg, "
+			+ "	attrib_07, attrib_01, attrib_04, attrib_05, agt_hostname) "
+			+ " values(service_result_seq.nextval, 'WEBAPP', sysdate, ?,?,trunc(?),?,?, ?,?,?,?) ";
+	
+	//------ 시스템 사용량
+	public static final String INSERT_SERVER_SQL = "insert into M_SERVER_RESULT"
+			+ " (row_id, created, server_id, report_dt, task_dt, cpu, memory, disk, archive, "
+			+ "		attrib_01, attrib_02, attrib_03, attrib_07, attrib_08, attrib_09, agt_hostname, task_id) "
+			+ " values (server_result_seq.NEXTVAL, sysdate, ?, trunc(?), ?, ROUND(?,2), ROUND(?,2), ROUND(?,2), ROUND(?,2), ?,?,?,ROUND(?,2),ROUND(?,2), ROUND(?,2),?,?)"; 
+
+	public static final String INSERT_DB_SERVICE = " insert into M_SERVICE_RESULT "
+			+ " (row_id, created, server_id, report_dt, task_dt, svc_type_cd, task_id, name, success_flg, agt_hostname, attrib_01) "
+			+ " values (service_result_seq.NEXTVAL, sysdate, ?, trunc(?),?,?,?,?, ?,?,?) ";
+	
+	public static final String INSERT_DB_SERVER_SQL = " insert all "
+			+ " into M_SERVER_RESULT "
+			+ " (row_id, created, server_id, report_dt, task_dt, cpu, memory, disk, agt_hostname, task_id) "
+			+ " values (server_result_seq.NEXTVAL, sysdate, agent_id, rdate, tdate, vcpu, vmem, vdisk, hostname, stid) "
+			+ " into M_SERVICE_RESULT "		
+			+ " (row_id, created, server_id, report_dt, task_dt, svc_type_cd, task_id, success_flg, agt_hostname) "
+			+ " values (service_result_seq.NEXTVAL, sysdate, agent_id, rdate, tdate, skind, tid, sflg, hostname) "
+			+ " select ? agent_id, trunc(?) rdate, ? tdate, ROUND(?,2) vcpu, ROUND(?,2) vmem, ROUND(?,2) vdisk, "
+			+ "		? skind, ? tid, ? sflg, ? hostname, ? stid from dual ";
+	
+	public static final String MOD_HTML_SQL = 
+			"  UPDATE M_service_body_result SET last_upd=sysdate, MODIFICATION_NUM = MODIFICATION_NUM + 1 where row_key=? ";
+	
+	public static final String ADD_HTML_SQL = 
+			" insert INTO M_service_body_result " +
+			" 	( row_key, CREATED, contents) VALUES( ?, SYSDATE, ?) ";
+	
+}
