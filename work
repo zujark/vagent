@@ -1,0 +1,59 @@
+package kt.gmon.agent.manager;
+
+import kt.gmon.agent.dao.AgentBatchDao;
+import kt.gmon.agent.worker.BatchWorker;
+import kt.gmon.agent.worker.DbSqlWorker;
+import kt.gmon.agent.worker.DbUseWorker;
+import kt.gmon.agent.worker.WebAppWorker;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeansException;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.ApplicationContextAware;
+import org.springframework.stereotype.Component;
+
+@Component
+public class WorkerFactory implements ApplicationContextAware {
+
+	private Logger log = LoggerFactory.getLogger(WorkerFactory.class);
+	
+	private ApplicationContext ctx;
+	
+	@Override
+	public void setApplicationContext(ApplicationContext applicationContext)
+			throws BeansException {
+		this.ctx = applicationContext;
+	}
+	
+	public DbSqlWorker getDbSqlWorker(){
+
+		return ctx.getBean(DbSqlWorker.class);
+	}
+
+	public DbUseWorker getDbUseWorker(){
+	
+		return ctx.getBean(DbUseWorker.class);
+	}
+
+	public WebAppWorker getWebappWorker(){
+		return ctx.getBean(WebAppWorker.class);
+	}
+	
+	public BatchWorker getBatchWorker(){
+		return ctx.getBean(BatchWorker.class);
+	}
+	
+	public AgentBatchDao getAgentBatchDao(int db_id){
+		
+		AgentBatchDao dao = ctx.getBean(AgentBatchDao.class);
+		try {
+			dao.initSql(db_id);
+		} catch (Exception e) {
+			e.printStackTrace();
+			log.error(e.getMessage(),e);
+		}
+		return dao;
+	}
+	
+}
