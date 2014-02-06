@@ -1,0 +1,189 @@
+Enter file contents herepackage kt.gmon.agent.dto;
+
+import java.sql.Timestamp;
+import java.text.DateFormat;
+
+import kt.gmon.agent.util.CryptUtil;
+import kt.gmon.agent.util.MyTimeUtil;
+
+import org.springframework.jdbc.core.support.SqlLobValue;
+
+public class SqlLockSessionDto {
+
+	private String sqlhashPk;
+
+	private Timestamp sql_stime;
+	private long sessionTime;	
+	private int pid;
+	private String state;
+	private String username;
+	private String client;
+	private String client_addr;
+	private String appname;
+	private String sqlquery;
+	private String sqlhash;
+
+	private int pid2;
+	private String state2;
+	private Timestamp block_stime;
+	private long blockSessionTime;
+	private String username2;
+	private String client2;
+	private String client_addr2;
+	private String appname2;
+	private String sqlquery2;
+	private String sqlhash2;
+
+	public String getHashKey() {
+		return  MyTimeUtil.getHourStr(sql_stime) + ":"+ sqlhashPk;
+	}
+	
+	public Object[] transToObject(int system_id, SqlLobValue nclobSql ){
+		return new Object[]{sqlhashPk, sql_stime , pid, state, username, appname, client_addr, sqlquery, sqlhash, sessionTime,
+				pid2, state2, username2, appname2, client_addr2, sqlquery2, sqlhash2, sqlhashPk, sessionTime};
+	}
+	
+	public void setSqlhash() {
+		this.sqlhashPk = CryptUtil.hashSHA(this.pid+"@"+this.pid2+"@"+ this.sql_stime+ "@" + this.sqlquery+"@" + this.sqlquery2);
+		if(this.sqlquery != null && this.sqlquery.trim().length() > 0 )
+			this.sqlhash = CryptUtil.hashSHA(this.sqlquery);
+		else this.sqlhash = null;
+		
+		if(this.sqlquery2 != null && this.sqlquery2.trim().length() > 0 )
+			this.sqlhash2 = CryptUtil.hashSHA(this.sqlquery2);
+		else this.sqlhash2 = null;
+	}
+		
+	public Timestamp getBlock_stime() {
+		return block_stime;
+	}
+
+	public void setBlock_stime(Timestamp block_stime) {
+		this.block_stime = block_stime;
+	}
+
+	public long getBlockSessionTime() {
+		return blockSessionTime;
+	}
+
+	public void setBlockSessionTime(long blockSessionTime) {
+		this.blockSessionTime = blockSessionTime;
+	}
+
+	public String getSqlhashPk() {
+		return sqlhashPk;
+	}
+	public void setSqlhashPk(String sqlhashPk) {
+		this.sqlhashPk = sqlhashPk;
+	}
+	public Timestamp getSql_stime() {
+		return sql_stime;
+	}
+	public void setSql_stime(Timestamp sql_stime) {
+		this.sql_stime = sql_stime;
+	}
+	public long getSessionTime() {
+		return sessionTime;
+	}
+	public void setSessionTime(long sessionTime) {
+		this.sessionTime = sessionTime;
+	}
+	public int getPid() {
+		return pid;
+	}
+	public void setPid(int pid) {
+		this.pid = pid;
+	}
+	public String getState() {
+		return state;
+	}
+	public void setState(String state) {
+		this.state = state;
+	}
+	public String getUsername() {
+		return username;
+	}
+	public void setUsername(String username) {
+		this.username = username;
+	}
+	public String getClient() {
+		return client;
+	}
+	public void setClient(String client) {
+		this.client = client;
+	}
+	public String getClient_addr() {
+		return client_addr;
+	}
+	public void setClient_addr(String client_addr) {
+		this.client_addr = client_addr;
+	}
+	public String getAppname() {
+		return appname;
+	}
+	public void setAppname(String appname) {
+		this.appname = appname;
+	}
+	public String getSqlquery() {
+		return sqlquery;
+	}
+	public void setSqlquery(String sqlquery) {
+		this.sqlquery = sqlquery;
+	}
+	public String getSqlhash() {
+		return sqlhash;
+	}
+	public void setSqlhash(String sqlhash) {
+		this.sqlhash = sqlhash;
+	}
+	public int getPid2() {
+		return pid2;
+	}
+	public void setPid2(int pid2) {
+		this.pid2 = pid2;
+	}
+	public String getState2() {
+		return state2;
+	}
+	public void setState2(String state2) {
+		this.state2 = state2;
+	}
+	public String getUsername2() {
+		return username2;
+	}
+	public void setUsername2(String username2) {
+		this.username2 = username2;
+	}
+	public String getClient2() {
+		return client2;
+	}
+	public void setClient2(String client2) {
+		this.client2 = client2;
+	}
+	public String getClient_addr2() {
+		return client_addr2;
+	}
+	public void setClient_addr2(String client_addr2) {
+		this.client_addr2 = client_addr2;
+	}
+	public String getAppname2() {
+		return appname2;
+	}
+	public void setAppname2(String appname2) {
+		this.appname2 = appname2;
+	}
+	public String getSqlquery2() {
+		return sqlquery2;
+	}
+	public void setSqlquery2(String sqlquery2) {
+		this.sqlquery2 = sqlquery2;
+	}
+	public String getSqlhash2() {
+		return sqlhash2;
+	}
+	public void setSqlhash2(String sqlhash2) {
+		this.sqlhash2 = sqlhash2;
+	}
+
+	
+}
