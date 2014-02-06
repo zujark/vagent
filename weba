@@ -1,0 +1,73 @@
+Enter file contents herepackage kt.gmon.agent.schedule;
+
+
+import java.util.List;
+import javax.annotation.PostConstruct;
+
+import kt.gmon.agent.conf.ManagerDbConf;
+import kt.gmon.agent.dao.gmon.TaskDao;
+import kt.gmon.agent.domain.VarDef;
+import kt.gmon.agent.dto.gmon.TaskDto;
+import kt.gmon.agent.manager.WorkerFactory;
+import kt.gmon.agent.worker.WebAppWorker;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.stereotype.Component;
+
+@Component
+public class WebappManager extends WorkManager implements Runnable {
+
+	private Logger log = LoggerFactory.getLogger(WebappManager.class);
+
+	@Autowired
+	private ThreadPoolTaskScheduler scheduler;
+	
+	@Autowired
+	ManagerDbConf dbConf;
+	
+	@Autowired
+	TaskDao taskDao;
+	
+	@Autowired
+	WorkerFactory taskFactory;
+	
+	private int INIT=0;
+
+	@PostConstruct
+	private void init(){
+		init_Manager();
+	}
+	
+	public void run(){
+		System.out.println("########### fileconf.period = "+ dbConf.getAgent_id());
+
+		if(!dbConf.getupIsChanged(VarDef.WEB_ONLY_CHANGE) && INIT > 0) return;
+		INIT=1;
+		
+		List<TaskDto> webconfs=null;
+		try {
+			webconfs = taskDao.list(dbConf.getAgent_id(), VarDef.AG_SVC_WEBAPP);
+			removeAll(); // 초기화
+			
+	        if(webconfs !=  null)
+	        	for (TaskDto work : webconfs) {
+	        		WebAppWorker  worker = taskFactory.getWebappWorker();
+	        		
+	        		worker.initConf(work);
+	        		startWork(worker);
+	        	}
+		} catch (Exception e) {
+			e.printStackTrace(); log.error(e.getMessage(), e);
+		}  // 배치변경 여부 확인하고 목록 수집
+		
+	}
+
+	public ThreadPoolTaskScheduler getScheduler() {
+		return scheduler;
+	}
+
+		
+}
