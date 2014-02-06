@@ -1,0 +1,255 @@
+Enter file contents herepackage kt.gmon.agent.schedule;
+
+import java.util.*;
+import java.util.concurrent.ScheduledFuture;
+
+import javax.annotation.PostConstruct;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Scope;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.stereotype.Component;
+
+import kt.gmon.agent.conf.AgentConf;
+import kt.gmon.agent.conf.ManagerDbConf;
+import kt.gmon.agent.dao.gmon.TaskDao;
+import kt.gmon.agent.domain.VarDef;
+import kt.gmon.agent.dto.gmon.AgentSvcDto;
+import kt.gmon.agent.dto.gmon.TaskDto;
+import kt.gmon.agent.manager.WorkerFactory;
+import kt.gmon.agent.worker.*;
+
+
+@Component
+@Scope("singleton")
+public class TaskManager {
+
+	private Logger log = LoggerFactory.getLogger(TaskManager.class);
+	
+	@Autowired
+	private ThreadPoolTaskScheduler scheduler;
+	
+	private Hashtable<String, ScheduledFuture> tasks;
+	
+//	@Autowired
+//	BatchManager batchManagerWorker;
+
+	@Autowired
+	DbBatchManager batchManagerWorker;
+	
+	@Autowired
+	TaskDao taskDao;
+	
+	@Autowired
+	WorkerFactory workFactory;
+	
+	@Autowired
+	SysWorker sysWorker;
+
+	@Autowired
+	ServiceWorker serviceWorker;
+
+	@Autowired
+	WebappManager webManagerWorker;
+	
+	@Autowired
+	WebAppWorker webappWorker;
+	
+	@Autowired
+	AgentConf agentConf;	
+	
+	private ManagerDbConf dbConf;
+	private int INIT=0;
+
+	@PostConstruct
+	public void init(){
+		dbConf = agentConf.getDbConf();
+		tasks = new Hashtable<>();		
+	}	
+	
+	@Scheduled(fixedRate = 10000)
+    public void runTasks(){
+		System.out.println(" ******* Task Size = "+ tasks.size());
+        try {     	
+        	if(!dbConf.getupIsChanged(VarDef.TASK_CHANGE) && INIT > 0) return;
+        	List<AgentSvcDto> taskSvcs = dbConf.loadSvcs();
+
+        	log.info(" Reload Tasks: Task_Conf size = "+ taskSvcs.size());
+        	resetSvs(taskSvcs);
+        	
+        	for(AgentSvcDto svc: taskSvcs){
+        		try{
+        			if(svc.isChanged() || INIT ==0) makeScheduleWork(svc);  //초기 로딩이고 이후에는 변경이 되면 실행
+        		}catch(Exception e){
+        			e.printStackTrace(); log.error(e.getMessage(), e);
+        			continue;				// 일부 모듈 에러시 다른 모듈은 계속 진행한다.
+        		}
+        	}
+        	
+        	//if(!SYS_WORK && INIT ==0){
+        	//	scheduleSysWorker();
+        	//}        	
+        	
+        	INIT=1;
+        } catch (Exception e){
+            e.printStackTrace(); log.error(e.getMessage(), e);
+        }
+    }
+
+	private void scheduleSysWorker() {
+		ScheduledFuture taskfuture =  scheduler.scheduleAtFixedRate(sysWorker, agentConf.getSys_period()* 1000);
+		//SYS_WORK=true;
+		addTask(VarDef.AG_SVC_SYS, taskfuture);
+	}
+
+	private void resetSvs(List<AgentSvcDto> taskSvcs) {
+		//SYS_WORK=false;
+		Enumeration<String> taskKeys = tasks.keys();
+		List<String> delTasks = new ArrayList<>();
+		while(taskKeys.hasMoreElements()){
+			String tmpKey = taskKeys.nextElement();
+			if(!exitsTask(tmpKey, taskSvcs)) delTasks.add(tmpKey);
+		}
+		
+		for(String tmp: delTasks){
+			removeTask(tmp);
+		}
+	}
+
+	private boolean exitsTask(String tmpKey, List<AgentSvcDto> taskSvcs) {
+		for(AgentSvcDto tmp: taskSvcs){
+			if((tmpKey.indexOf(tmp.getSvc_code()) >=0) && !tmp.isChanged()) return true;   // TODO 로직 검사 필요
+		}
+		return false;
+	}
+
+	private void makeScheduleWork(AgentSvcDto svc) throws Exception {
+		ScheduledFuture taskfuture;
+		log.info(" task _id = "+ svc.getTask_id());
+		switch(svc.getSvc_code()){
+			// -------------------------- work manager 
+			case VarDef.AG_SVC_BATCH:
+				taskfuture =  scheduler.scheduleAtFixedRate(batchManagerWorker, agentConf.getBatch_period() * 1000);
+				addTask(VarDef.AG_SVC_BATCH, taskfuture);
+				break;
+			case VarDef.AG_SVC_WEBAPP:
+				taskfuture =  scheduler.scheduleAtFixedRate(webManagerWorker, agentConf.getSys_period()* 1000);
+				addTask(VarDef.AG_SVC_WEBAPP, taskfuture);
+				break;
+				
+			// ----------------------- single worker	
+			case VarDef.AG_SVC_DB:
+				DbUseWorker tmpWorker = workFactory.getDbUseWorker();
+				taskfuture = makeSingleWorker(svc, tmpWorker);
+				addTask(VarDef.AG_SVC_DB+svc.getDb_id(), taskfuture);
+				updateWorkState(VarDef.DB_CHANGE);
+				break;
+			case VarDef.AG_SVC_SQL:	
+				DbSqlWorker tmpWorker2 = workFactory.getDbSqlWorker();
+				taskfuture = makeSingleWorker(svc, tmpWorker2);				
+				addTask(VarDef.AG_SVC_SQL + svc.getDb_id(), taskfuture);
+				updateWorkState(VarDef.SQL_CHANGE);
+				log.info(tmpWorker2 + " started ");
+				break;	
+				
+			//--------------------- 시스템별 한개
+			case VarDef.AG_SVC_SERVICE:
+				taskfuture = makeSingleWorker(svc, serviceWorker);
+				addTask(VarDef.AG_SVC_SERVICE, taskfuture);
+				updateWorkState(VarDef.SERVICE_CHANGE);
+				break;
+			case VarDef.AG_SVC_SYS:
+				taskfuture = makeSingleWorker(svc, sysWorker);	
+				addTask(VarDef.AG_SVC_SYS, taskfuture);
+				updateWorkState(VarDef.SYS_CHANGE);
+				break;				
+//			case VarDef.AG_SVC_WEBSESS: 
+//				taskfuture =  scheduler.scheduleAtFixedRate(serverWorker, agentConf.getSys_period()* 1000);
+//				addTask(VarDef.AG_SVC_WEBSESS, taskfuture);
+//				updateWorkState(VarDef.WEB_CHANGE);
+//				break;
+//			case VarDef.AG_SVC_SERVER: //------- 시스템별 한개	
+//				taskfuture =  scheduler.scheduleAtFixedRate(serverWorker, agentConf.getSys_period()* 1000);
+//				addTask(VarDef.AG_SVC_SERVER, taskfuture);
+//				updateWorkState(VarDef.SERVER_CHANGE);
+//				break;			
+
+		}
+	}
+
+	private ScheduledFuture<GmonWorker> makeSingleWorker(AgentSvcDto svc, GmonWorker tmpWorker)
+			throws Exception {
+		ScheduledFuture<GmonWorker> taskfuture;
+		TaskDto taskConf = taskDao.findById(svc.getTask_id());
+		tmpWorker.initConf(taskConf);				
+		taskfuture = schedulingWorker(tmpWorker);
+		return taskfuture;
+	}
+ 	
+	@SuppressWarnings("unchecked")
+	private ScheduledFuture<GmonWorker> schedulingWorker(GmonWorker worker) {
+		ScheduledFuture<GmonWorker> taskfuture=null;
+		switch(worker.getPeriodType()){
+			case VarDef.SEC_Period:
+				taskfuture =  scheduler.scheduleAtFixedRate(worker, worker.getRepUnit() * 1000);  // 초단위
+				break;
+			case VarDef.MIN_Period:
+				taskfuture =  scheduler.scheduleAtFixedRate(worker, worker.getRepUnit() * 60000);  // 분단위
+				break;
+			case VarDef.HOUR_Period:
+				taskfuture =  scheduler.scheduleAtFixedRate(worker, worker.getRepUnit() *  3600000); // 시간 단위
+				break;
+			case VarDef.DAY_Period:
+			case VarDef.MON_Period:
+				taskfuture =  scheduler.schedule(worker, worker.makeCron());
+				break;
+		}
+		return taskfuture;
+	}
+	
+	private void updateWorkState(int work_code) {
+		try{
+			dbConf.getupIsChanged(work_code);
+		}catch(Exception e){
+			e.printStackTrace(); log.error(e.getMessage(), e);
+		}
+	}
+	
+	public void addTask(String key, ScheduledFuture task){
+		tasks.put(key, task);
+		log.info(" task size = "+ tasks.size());
+	}
+	
+	public void removeTask(String key){
+		ScheduledFuture worker =  tasks.remove(key);
+		if(worker != null){
+			clearWorker(key, worker);
+		}
+		log.info(" task size = "+ tasks.size());
+	}
+
+	public void removeAll(){
+		Enumeration<String> works = tasks.keys();
+		while(works.hasMoreElements()){
+			String key =  works.nextElement();
+			if(key != null) removeTask(key);		
+		}
+		
+		log.info(" task size = "+ tasks.size());
+	}	
+	
+	private void clearWorker(String key, ScheduledFuture worker) {
+		if(key.equals(VarDef.AG_SVC_BATCH)){
+			this.batchManagerWorker.removeAll();
+		}else if(key.equals(VarDef.AG_SVC_WEBAPP)){
+			this.webManagerWorker.removeAll();
+		}
+		worker.cancel(true);
+	}
+	
+
+	
+}
