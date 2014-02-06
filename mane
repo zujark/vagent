@@ -1,0 +1,100 @@
+package kt.gmon.agent.schedule;
+
+import java.util.Enumeration;
+import java.util.Hashtable;
+import java.util.List;
+import java.util.concurrent.ScheduledFuture;
+
+import javax.annotation.PostConstruct;
+
+import kt.gmon.agent.conf.FileConfig;
+import kt.gmon.agent.conf.ManagerDbConf;
+import kt.gmon.agent.dao.AgentBatchDao;
+import kt.gmon.agent.dao.gmon.BatchDao;
+import kt.gmon.agent.dao.gmon.BatchResultDao;
+import kt.gmon.agent.domain.VarDef;
+import kt.gmon.agent.dto.gmon.BatchDto;
+import kt.gmon.agent.manager.WorkerFactory;
+import kt.gmon.agent.worker.BatchWorker;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Scope;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.scheduling.support.CronTrigger;
+import org.springframework.stereotype.Component;
+
+
+public abstract class WorkManager {
+
+	private Logger log = LoggerFactory.getLogger(WorkManager.class);
+	
+	private Hashtable<String, ScheduledFuture<GmonWorker>> tasks;
+	
+	public void init_Manager(){
+		tasks = new Hashtable<>();
+	}
+	
+	abstract ThreadPoolTaskScheduler getScheduler();
+	
+	public void startWork(GmonWorker worker){
+		ScheduledFuture<GmonWorker> taskfuture=null;
+
+		taskfuture = schedulingWorker(taskfuture, worker);
+		if(taskfuture == null) return;
+		
+		addTask(worker.getKeyId(), taskfuture, worker.getRepUnit() );
+	}
+
+
+	private ScheduledFuture<GmonWorker> schedulingWorker(ScheduledFuture<GmonWorker> taskfuture, GmonWorker worker) {
+		switch(worker.getPeriodType()){
+			case VarDef.SEC_Period:
+				taskfuture =  getScheduler().scheduleAtFixedRate(worker, worker.getRepUnit() * 1000);  // 초단위
+				break;
+			case VarDef.MIN_Period:
+				taskfuture =  getScheduler().scheduleAtFixedRate(worker, worker.getRepUnit() * 60000);  // 분단위
+				break;
+			case VarDef.HOUR_Period:
+				taskfuture =  getScheduler().scheduleAtFixedRate(worker, worker.getRepUnit() *  3600000); // 시간 단위
+				break;
+			case VarDef.DAY_Period:
+			case VarDef.MON_Period:
+				taskfuture =  getScheduler().schedule(worker, worker.makeCron());
+				break;
+		}
+		return taskfuture;
+	}
+
+	
+	public void addTask(String key, ScheduledFuture<GmonWorker> task, int period){
+		tasks.put(key, task);
+		log.info(" id ="+ key + "> Job size = "+ tasks.size() + " period = "+ period);
+	}
+	
+	public void removeTask(String key){
+		ScheduledFuture<GmonWorker> worker =  tasks.remove(key);
+		if(worker != null){
+			worker.cancel(true);
+		}
+		log.info(" Job size = "+ tasks.size());
+	}
+	
+	public void removeAll(){
+		log.info(" *********** removing start ALL Job size = "+ tasks.size());
+		Enumeration<String> works = tasks.keys(); 
+		while(works.hasMoreElements()){
+			String key =  works.nextElement();
+			if(key != null){
+				ScheduledFuture<GmonWorker> worker = tasks.get(key);
+				worker.cancel(true);
+				tasks.remove(key);
+				log.info(" remove one Job size = "+ tasks.size());
+			}	
+		}
+		
+		log.info(" ************ remove end ALL Job size = "+ tasks.size());
+	}	
+		
+}
