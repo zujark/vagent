@@ -1,1 +1,74 @@
-asdf
+package kt.gmon.agent.dto.gmon;
+
+
+/**
+ * t.agent_id, t.agent_task_type_cd, t.conn_id, c.command, c.command_type_cd 
+ * @author zujark
+ *
+ */
+public class TaskDto  extends ScheduleBean {
+
+	private int taskId;
+	private int agentId;
+	private int connId;
+	private int command_id;
+	private String name;
+	private String taskType;
+	private String commandType;
+	private String command;
+	
+	public String toString(){
+		return "[" + agentId + ":"+ taskId +":"+ command_id +":"+ connId +":"+ name +" ] - "+ super.toString() +"\r\n" + command; 
+	}
+	
+	public String getName() {
+		return name;
+	}
+	public void setName(String name) {
+		this.name = name;
+	}
+	public int getCommand_id() {
+		return command_id;
+	}
+	public void setCommand_id(int command_id) {
+		this.command_id = command_id;
+	}
+	public int getTaskId() {
+		return taskId;
+	}
+	public void setTaskId(int taskId) {
+		this.taskId = taskId;
+	}
+	public int getAgentId() {
+		return agentId;
+	}
+	public void setAgentId(int agentId) {
+		this.agentId = agentId;
+	}
+	public int getConnId() {
+		return connId;
+	}
+	public void setConnId(int connId) {
+		this.connId = connId;
+	}
+	public String getTaskType() {
+		return taskType;
+	}
+	public void setTaskType(String taskType) {
+		this.taskType = taskType;
+	}
+	public String getCommandType() {
+		return commandType;
+	}
+	public void setCommandType(String commandType) {
+		this.commandType = commandType;
+	}
+	public String getCommand() {
+		return command;
+	}
+	public void setCommand(String command) {
+		this.command = command;
+	}
+	
+	
+}
