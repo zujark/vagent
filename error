@@ -1,0 +1,140 @@
+package kt.gmon.agent.manager;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.annotation.PostConstruct;
+
+import kt.gmon.agent.dao.gmon.ErrorLogDao;
+import kt.gmon.agent.domain.ErrorLogDto;
+import kt.gmon.agent.schedule.DbBatchManager;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+
+@Component
+public class ErrorLogManager {
+
+	private Logger log = LoggerFactory.getLogger(ErrorLogManager.class);
+	
+	@Autowired
+	ErrorLogDao errDao;
+	
+	List<ErrorLogDto> logs;	
+	
+	@PostConstruct
+	private void init(){
+		logs = new ArrayList<>();
+	}
+	
+	@Scheduled(fixedRate = 5000)
+	public void saveLogs(){
+		logs = InMemoryAppender.getLogs();
+		
+		if(logs.size() > 0){
+			try {
+				log.info(" Error Memory Log size = "+ 	logs.size());
+				errDao.saveLogs(logs);
+			} catch (Exception e) {
+				e.printStackTrace();
+				log.error(e.getMessage(),e);
+			}
+			logs.clear();
+			logs = null;
+		}
+	}
+
+	
+}
+
+
+package kt.gmon.agent.manager;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Vector;
+
+import kt.gmon.agent.domain.ErrorLogDto;
+
+import org.apache.log4j.AppenderSkeleton;
+import org.apache.log4j.spi.LocationInfo;
+import org.apache.log4j.spi.LoggingEvent;
+import org.apache.log4j.spi.ThrowableInformation;
+
+public class InMemoryAppender extends AppenderSkeleton {
+
+	private volatile long id = 0;
+	public final static List<ErrorLogDto> logList = new ArrayList<>();
+
+	public synchronized void close() {
+	}
+
+	public boolean requiresLayout() {
+		return false;
+	}
+
+	protected boolean checkEntryConditions() {
+		if (this.closed) {
+			return false;
+		}
+
+		if (this.layout == null) {
+			errorHandler.error("No layout set for the appender named [" + name+ "].");
+			return false;
+		}
+		return true;
+	}
+
+	@Override
+	public void append(LoggingEvent event) {
+		try{
+			ThrowableInformation throwInfo = event.getThrowableInformation();
+			Throwable except = throwInfo.getThrowable();	
+			subAppend(event, except);
+		}catch(Exception e){			
+		}
+	}
+
+	protected void subAppend(LoggingEvent event, Throwable except) {
+		try{	
+
+			ErrorLogDto log = new ErrorLogDto();
+			
+			log.setMessage(event.getMessage().toString());			
+			LocationInfo locInfo = event.getLocationInformation();
+			log.setClassName(locInfo.getClassName());
+			log.setCtime(event.timeStamp);
+			log.setMethodName(locInfo.getMethodName());
+			log.setLineNumber(locInfo.getLineNumber());
+			log.setThread(event.getThreadName());			
+			log.setExceptClass(except.getClass().getName());
+			log.setDetail(makeDetail(except));
+			
+			logList.add(log);
+		}catch(Exception e){
+			e.printStackTrace();
+		}
+		
+	}
+
+    public synchronized static ArrayList<ErrorLogDto> getLogs(){
+    	List<ErrorLogDto> retData = new ArrayList<ErrorLogDto>(); 
+    	retData.addAll(logList);
+    	logList.clear();
+    	return (ArrayList<ErrorLogDto>) retData;          
+    }
+    
+	private String makeDetail(Throwable except) {
+		StackTraceElement[] stacks= except.getStackTrace();
+		String details="";
+		if(stacks != null && stacks.length > 0)
+			for(StackTraceElement tmp: stacks){
+				details += tmp + "\r\n";
+			}
+		return details;
+	}	
+
+}
