@@ -1,0 +1,82 @@
+Enter file contents herepackage kt.gmon.agent.worker;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import kt.gmon.agent.conf.FileConfig;
+import kt.gmon.agent.dao.ServiceParserDao;
+import kt.gmon.agent.dao.gmon.SysInfoDao;
+import kt.gmon.agent.dao.gmon.TaskDao;
+import kt.gmon.agent.domain.ErrorLogDto;
+import kt.gmon.agent.domain.VarDef;
+import kt.gmon.agent.dto.gmon.ServiceDto;
+import kt.gmon.agent.dto.gmon.TableUseDto;
+import kt.gmon.agent.dto.gmon.TablespaceUseDto;
+import kt.gmon.agent.dto.gmon.TaskDto;
+import kt.gmon.agent.manager.ErrorLogManager;
+import kt.gmon.agent.schedule.GmonWorker;
+import kt.gmon.agent.util.CryptUtil;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+@Component
+public class ServiceWorker extends GmonWorker {
+
+	private Logger log = LoggerFactory.getLogger(ServiceWorker.class);
+
+	@Autowired
+	ErrorLogManager logManager;
+	
+	@Autowired
+	TaskDao taskDao;
+	
+	@Autowired
+	ServiceParserDao parseDao;
+	
+	@Autowired
+	SysInfoDao svcDao;
+	
+	List<TaskDto> taskConfs;
+	List<ServiceDto> result;
+	
+	public void initConf(TaskDto conf){
+		super.initConf(conf);
+		try {
+			result = new ArrayList<>();
+			taskConfs = taskDao.list(conf.getAgentId(), VarDef.AG_SVC_SERVICE);			
+		} catch (Exception e) {
+			e.printStackTrace(); log.error(e.getMessage(), e);
+			log.error(e.getMessage(), e);
+		}
+		log.info(" @@@@@@ Reconfiguration : "+ taskConf );
+	}
+	
+	@Override
+	public void run() {
+		log.info(" %%%%%%%%% started  ");	
+		if(!isValidTime()) return;
+		
+		for(TaskDto tmp: taskConfs){
+			ServiceDto data = parseDao.parseSvcInfo(tmp.getCommand(), tmp.getName());
+			data.setTaskId(this.getSchedule().getTaskId());
+			if(data != null) result.add(data);
+		}
+		
+		saveResult(result);
+	}
+
+	private void saveResult(List<ServiceDto> result2) {
+		try {
+			svcDao.addServices(result, taskConf.getAgentId());
+		} catch (Exception e) {
+			e.printStackTrace();
+			log.error(e.getMessage(),e);
+		}
+		result.clear();
+	}
+
+
+}
