@@ -1,0 +1,157 @@
+Enter file contents herepackage kt.gmon.agent.util;
+
+import java.io.UnsupportedEncodingException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.MessageDigest;
+import java.util.Scanner;
+
+import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+
+import kt.gmon.agent.dao.AgentDBUseDaoImpl;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class CryptUtil {
+
+	private static Logger log = LoggerFactory.getLogger(CryptUtil.class);
+	
+	private static MessageDigest messageDigest=null;
+	
+	static {
+		try{
+			messageDigest = MessageDigest.getInstance("MD5");
+		}catch(Exception e){
+			e.printStackTrace(); log.error(e.getMessage(), e);
+		}
+	}
+
+	public static String hashSHA(String data){	
+		messageDigest.update(data.getBytes());
+		try {
+			return byteArrayToHexString(messageDigest.digest());
+		} catch (Exception e) {
+			e.printStackTrace(); log.error(e.getMessage(), e);
+		}
+		return data;
+	}
+	
+	public static String byteArrayToHexString(byte[] b) throws Exception {
+        String result = "";
+        for (int i=0; i < b.length; i++) {
+            result +=
+                Integer.toString( ( b[i] & 0xff ) + 0x100, 16).substring( 1 );
+        }
+        return result;
+    }
+	
+	public static String byteArrayToHex(byte[] ba) {
+		if (ba == null || ba.length == 0)
+			return null;
+		StringBuffer sb = new StringBuffer(ba.length * 2);
+		String hexNumber;
+		for (int x = 0; x < ba.length; x++) {
+			hexNumber = "0" + Integer.toHexString(0xff & ba[x]);
+			sb.append(hexNumber.substring(hexNumber.length() - 2));
+		}
+		return sb.toString();
+	}
+
+	public static byte[] hexToByteArray(String hex) {
+        if (hex == null || hex.length() == 0)  return null;
+        byte[] ba = new byte[hex.length() / 2];
+        for (int i = 0; i < ba.length; i++) {
+            ba[i] = (byte) Integer.parseInt(hex.substring(2 * i, 2 * i + 2), 16);
+        }
+        return ba;
+    }
+	
+	public static String encrypt(String secretKey, String str) {
+		byte[] keyData = secretKey.getBytes();
+
+		SecretKey secureKey = new SecretKeySpec(keyData, "AES");
+
+		Cipher c;
+		try {
+			c = Cipher.getInstance("AES/CBC/PKCS5Padding");
+			c.init(Cipher.ENCRYPT_MODE, secureKey, new IvParameterSpec(
+					secretKey.getBytes()));
+			byte[] encrypted;
+			encrypted = c.doFinal(str.getBytes("UTF-8"));
+			return byteArrayToHex(encrypted);
+		} catch (Exception e) {
+			e.printStackTrace(); log.error(e.getMessage(), e);
+		}
+		return null;
+	}
+
+	// 복호화
+	public static String decrypt(String secretKey, String str) {
+		byte[] keyData = secretKey.getBytes();
+		SecretKey secureKey = new SecretKeySpec(keyData, "AES");
+		try {
+			Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding");
+
+			c.init(Cipher.DECRYPT_MODE, secureKey, new IvParameterSpec(
+					secretKey.getBytes("UTF-8")));
+
+			byte[] decrypted = c.doFinal(hexToByteArray(str));
+			return new String(decrypted);
+
+		} catch (Exception e) {
+			e.printStackTrace(); log.error(e.getMessage(), e);			
+		}
+		return null;
+	}
+	
+	
+	
+	public static void main(String[] arg){
+		String command="";
+		String skey= "didtladlekqdlek.hh";
+		Scanner sc = new Scanner(System.in);
+		String opt=null;
+		if(arg != null && arg.length > 1) opt = arg[1];
+		
+		if(opt == null || opt.equalsIgnoreCase("-e"))
+			while(!command.equalsIgnoreCase("q") && !command.equalsIgnoreCase("quit")){
+				System.out.println(" Input the Data to Encrypt : \r\n");
+				command = sc.nextLine().trim();
+				String en_val = CryptUtil.encrypt(skey, command);
+				System.out.println(" Encrypt Data : " + en_val + " \r\n");
+			}
+		
+		else if(opt != null && opt.equalsIgnoreCase("-d"))
+			while(!command.equalsIgnoreCase("q") && !command.equalsIgnoreCase("quit")){
+				System.out.println(" Input the Data to Decrypt : \r\n");
+				command = sc.nextLine().trim();
+				String en_val = CryptUtil.decrypt(skey, command);
+				System.out.println(" Decrypt Data : " + en_val + " \r\n");				
+			}
+		else {
+			System.out.println(" Usage ");
+			System.out.println("\t -e : encrypt ");
+			System.out.println("\t -d : decrypt ");
+			System.out.println("\t  q or quit  : exit ");
+		}
+		
+		sc.close();
+//		System.out.println(" value =" + CryptUtil.hashSHA("fjasldfjlsk"));
+//		
+//		
+//		String en_val = CryptUtil.encrypt(skey, "test");
+//		System.out.println(" aes en gmon  =" + en_val);
+//		
+//		en_val = CryptUtil.encrypt(skey, "CREAMMONI");
+//		System.out.println(" aes en CREAMMONI1305!  =" + en_val);
+//			
+//		skey= "didtladlekqdlek.33";
+//		
+//		System.out.println(" aes de value =" + CryptUtil.decrypt(skey,  en_val));
+		
+	}
+}
