@@ -1,0 +1,73 @@
+Enter file contents herepackage kt.gmon.agent.worker;
+
+import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
+
+import kt.gmon.agent.conf.FileConfig;
+import kt.gmon.agent.dao.AgentDBUseDao;
+import kt.gmon.agent.dao.gmon.DBUseDao;
+import kt.gmon.agent.dto.gmon.*;
+import kt.gmon.agent.schedule.GmonWorker;
+
+@Component
+@Scope("prototype")
+public class DbUseWorker  extends GmonWorker {
+
+	private Logger log = LoggerFactory.getLogger(DbUseWorker.class);
+	
+	@Autowired
+	DBUseDao monDao;
+	
+	@Autowired
+	AgentDBUseDao agentDao; 
+	
+	@Autowired
+	FileConfig fileConf;
+	
+	public void initConf(TaskDto taskConf){
+		super.initConf(taskConf);
+		try {
+			agentDao.initSql(taskConf.getConnId());
+		} catch (Exception e) {
+			e.printStackTrace();
+			log.error(e.getMessage(),e);
+		}
+		log.info(" @@@@@@ Reconfiguration : "+ taskConf + "\r\n"+ agentDao.getSqlTabQuery() + "\r\n" + agentDao.getSqlTabSpQuery() );
+	}
+	
+	@Override
+	public void run() {
+		log.info(" %%%%%%%%% started period = "+ taskConf.getRepUnit());	
+		if(!isValidTime()) return;
+		
+		List<TableUseDto> tabData = agentDao.listTab();
+		List<TablespaceUseDto> tabspData = agentDao.listTabspace();
+
+		if(tabData != null){
+			try {
+				monDao.addTabBatch(tabData, fileConf.getAgent_id(), taskConf.getTaskId());
+			} catch (Exception e) {
+				e.printStackTrace();
+				log.error(e.getMessage(),e);
+			}		
+			log.info(" tab size = " + tabData.size());
+		}
+		
+		if(tabspData != null){
+			log.info(" tabspace size = " + tabspData.size());		
+			try {
+				monDao.addTabspaceBatch(tabspData, fileConf.getAgent_id(), taskConf.getTaskId());
+			} catch (Exception e) {
+				e.printStackTrace();
+				log.error(e.getMessage(),e);
+			}
+		}
+		
+	}
+
+}
