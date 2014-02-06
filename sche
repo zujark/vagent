@@ -1,0 +1,138 @@
+package kt.gmon.agent.dto.gmon;
+
+import kt.gmon.agent.domain.VarDef;
+import kt.gmon.agent.util.MyTimeUtil;
+
+import org.springframework.scheduling.support.CronTrigger;
+
+public class ScheduleBean {
+
+	String periodType;  // 매월, 매일 , 매시, 매분	
+	int repUnit;
+	
+	int sdate;
+	int edate;
+	
+	int stime;
+	int etime;
+	
+	public String toString(){
+		return periodType + ":" + repUnit + " ("+ sdate+ ":"+ stime + " => "+ edate + ":"+ etime + ")";
+	}
+	
+	public boolean isValidTime() {
+		int curDate= MyTimeUtil.getCurrentDate();
+		int curTime= MyTimeUtil.getCurrentTime();
+		if(sdate > 0){
+			if(curDate < sdate) return false;
+		}		
+		if(edate > 0){
+			if(curDate > edate) return false;
+		}
+		
+		if(!periodType.equals(VarDef.HOUR_Period) && !periodType.equals(VarDef.MIN_Period)) return true;
+		
+		if(stime > 0){
+			if(curTime < stime) return false;
+		}
+		
+		if(etime > 0){
+			if(curTime > etime) return false;
+		}		
+		
+		return true;
+	}
+
+	/**
+	 * 시간및 분단위 까지만 지원
+	 * @return
+	 */
+	public long makePeriodMill() {
+		switch(periodType){
+			case VarDef.DAY_Period:
+				return repUnit * 24 * 3600000;
+			case VarDef.HOUR_Period:
+				return repUnit * 3600000; 
+			case VarDef.MIN_Period:
+				return repUnit * 60000;
+			case VarDef.SEC_Period:
+				return repUnit * 1000; 
+		}
+		return -1;		
+	}
+	
+	/**
+	 * 임시 
+	 * @return
+	 */
+	@Deprecated
+	public long getSavePeriod() {
+		if(this.makePeriodMill() < 10800000){
+			return 10800000; // 3시간기본
+		}
+		return this.makePeriodMill();
+	}
+
+	
+	
+	public CronTrigger makeCron(){
+		if(periodType.equals("MON")){			
+			return new CronTrigger(" 0 "+ (stime%100) + " " + (stime/100) +" " + repUnit +" * *");
+		}else if(periodType.equals("DAY")){
+			return new CronTrigger(" 0 " + (stime%100)+ " " + (stime/100) + " * * *");
+		}
+		return null;
+	}
+	
+	
+	//-------------------- get/set ------------
+	public int getRepUnit() {
+		return repUnit;
+	}
+
+	public void setRepUnit(int repUnit) {
+		this.repUnit = repUnit;
+	}
+
+	public String getPeriodType() {
+		return periodType;
+	}
+
+	public void setPeriodType(String periodType) {
+		this.periodType = periodType;
+	}
+
+	public int getSdate() {
+		return sdate;
+	}
+
+	public void setSdate(int sdate) {
+		this.sdate = sdate;
+	}
+
+	public int getEdate() {
+		return edate;
+	}
+
+	public void setEdate(int edate) {
+		this.edate = edate;
+	}
+
+	public int getStime() {
+		return stime;
+	}
+
+	public void setStime(int stime) {
+		this.stime = stime;
+	}
+
+	public int getEtime() {
+		return etime;
+	}
+
+	public void setEtime(int etime) {
+		this.etime = etime;
+	}
+	
+	
+}
