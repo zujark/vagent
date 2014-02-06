@@ -1,0 +1,114 @@
+Enter file contents herepackage kt.gmon.agent.worker;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
+import java.sql.Date;
+import java.sql.Timestamp;
+
+import kt.gmon.agent.conf.AgentConf;
+import kt.gmon.agent.dao.gmon.ServiceDao;
+import kt.gmon.agent.dao.gmon.TaskDao;
+import kt.gmon.agent.domain.HttpResult;
+import kt.gmon.agent.dto.gmon.TaskDto;
+import kt.gmon.agent.schedule.GmonWorker;
+
+import org.apache.http.HttpEntity;
+import org.apache.http.HttpResponse;
+import org.apache.http.client.HttpClient;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
+
+@Component
+@Scope("prototype")
+public class WebAppWorker extends GmonWorker {
+
+
+	private Logger log = LoggerFactory.getLogger(WebAppWorker.class);
+	
+	@Autowired
+	ServiceDao svcDao;
+	
+	@Autowired
+	TaskDao taskDao;
+	
+	private HttpGet httpGet;
+	private HttpClient httpClient;
+	
+	public void initConf(TaskDto taskConf) {
+		
+		setSchedule(taskConf);
+		if(httpClient == null){
+			httpClient = new DefaultHttpClient();
+			httpGet = new HttpGet(taskConf.getCommand());		
+		}
+		
+		log.info(" @@@@@@ Reconfiguration : "+ taskConf );
+		
+	}
+
+	@Override
+	public void run() {
+		log.info(" %%%%%%%%% started  ");
+		Timestamp stime = new Timestamp(System.currentTimeMillis());
+		HttpResult ret = loadTestPage();
+		Timestamp etime = new Timestamp(System.currentTimeMillis());
+		ret.setStime(stime);
+		ret.setEtime(etime);
+		
+		saveWebTest(ret);		
+	}
+	
+	private void saveWebTest(HttpResult ret) {
+		
+		try{
+			svcDao.saveWebTest(taskConf.getTaskId(), taskConf.getAgentId(), ret);
+			
+		}catch(Exception e){
+			e.printStackTrace(); log.error(e.getMessage(), e);
+			
+		}
+		
+	}
+
+	private HttpResult loadTestPage(){
+
+		BufferedReader reader =null;
+		try {
+			HttpResponse response = httpClient.execute(httpGet);
+			int retCode = response.getStatusLine().getStatusCode();
+		 	reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent()));
+
+		 	StringBuffer result = new StringBuffer();
+			String line = "";
+			while ((line = reader.readLine()) != null) {
+				result.append(line).append("\r\n");
+			}
+			return new HttpResult(retCode, result.toString());
+			
+		} catch (Exception e) {
+			e.printStackTrace(); log.error(e.getMessage(), e);
+			return new HttpResult(-1, e.getMessage());
+			
+		} finally{
+			
+			if(reader != null)
+				try {
+					reader.close();
+					reader = null;
+				} catch (IOException e) {
+					e.printStackTrace(); log.error(e.getMessage(), e);
+				}
+			
+		}
+	}
+	
+
+}
