@@ -1,0 +1,152 @@
+Enter file contents herepackage kt.gmon.agent.dto;
+
+import java.sql.Date;
+import java.sql.Timestamp;
+import java.sql.Types;
+
+import org.springframework.jdbc.core.support.SqlLobValue;
+
+import kt.gmon.agent.util.CryptUtil;
+import kt.gmon.agent.util.MyTimeUtil;
+
+public class SqlSessionDto {
+
+	private String proc_stime;
+	private Timestamp sql_stime;
+	private int pid;
+	private String wait;
+	private String state;
+	private String username;
+	private String client;
+	private String client_addr;
+	private String appname;
+	private String sqlquery;
+	private String sqlhash;
+	private String sqlhashPk;
+	
+	private Timestamp backend_start;
+	private Timestamp xact_start;
+	private Timestamp stateChange;
+	
+	private int modNum;
+	private long sessionTime;	
+	
+	public Object[] transToObject(int system_id, SqlLobValue nclobSql ){
+		return new Object[]{sqlhashPk, backend_start, sessionTime, username, appname, client_addr, client, wait,
+				sql_stime, stateChange, xact_start, state, nclobSql, sqlhash, modNum, system_id, sqlhashPk, sessionTime};
+	}
+
+	public Timestamp getSql_stime() {
+		return sql_stime;
+	}
+	public void setSql_stime(Timestamp sql_stime) {
+		this.sql_stime = sql_stime;
+	}
+	public Timestamp getBackend_start() {
+		return backend_start;
+	}
+	public void setBackend_start(Timestamp backend_start) {
+		this.backend_start = backend_start;
+	}
+	public Timestamp getXact_start() {
+		return xact_start;
+	}
+	public void setXact_start(Timestamp xact_start) {
+		this.xact_start = xact_start;
+	}
+	public Timestamp getStateChange() {
+		return stateChange;
+	}
+	public void setStateChange(Timestamp stateChange) {
+		this.stateChange = stateChange;
+	}
+	public void setSqlhashPk(String sqlhashPk) {
+		this.sqlhashPk = sqlhashPk;
+	}
+	public int getModNum() {
+		return modNum;
+	}
+	public void setModNum(int modNum) {
+		this.modNum = modNum;
+	}
+	public long getSessionTime() {
+		return sessionTime;
+	}
+	public void setSessionTime(long sessionTime) {
+		this.sessionTime = sessionTime;
+	}
+	public void setSqlhash(String sqlhash) {
+		this.sqlhash = sqlhash;
+	}
+	public String getProc_stime() {
+		return proc_stime;
+	}
+	public void setProc_stime(String proc_stime) {
+		this.proc_stime = proc_stime;
+	}
+
+	public int getPid() {
+		return pid;
+	}
+	public void setPid(int pid) {
+		this.pid = pid;
+	}
+	public String getWait() {
+		return wait;
+	}
+	public void setWait(String wait) {
+		this.wait = wait;
+	}
+	public String getState() {
+		return state;
+	}
+	public void setState(String state) {
+		this.state = state;
+	}
+	public String getUsername() {
+		return username;
+	}
+	public void setUsername(String username) {
+		this.username = username;
+	}
+	public String getClient() {
+		return client;
+	}
+	public void setClient(String client) {
+		this.client = client;
+	}
+	public String getClient_addr() {
+		return client_addr;
+	}
+	public void setClient_addr(String client_addr) {
+		this.client_addr = client_addr;
+	}
+	public String getAppname() {
+		return appname;
+	}
+	public void setAppname(String appname) {
+		this.appname = appname;
+	}
+	public String getSqlquery() {
+		return sqlquery;
+	}
+	public void setSqlquery(String sqlquery) {
+		this.sqlquery = sqlquery;
+	}
+	public String getSqlhash() {
+		return sqlhash;
+	}
+	public void setSqlhash() {
+		this.sqlhashPk = CryptUtil.hashSHA(this.pid+ "@" + this.sql_stime+ "@" + this.sqlquery);
+		if(this.sqlquery == null || this.sqlquery.length() < 1) this.sqlhash= null;
+		else this.sqlhash = CryptUtil.hashSHA(this.sqlquery);
+	}
+	public String getSqlhashPk() {
+		return this.sqlhashPk;
+	}
+
+	public String getHashKey() {
+		return  MyTimeUtil.getHourStr(sql_stime) + ":"+ sqlhashPk;
+	}
+			
+}
