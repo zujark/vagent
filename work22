@@ -1,0 +1,92 @@
+Enter file contents herepackage kt.gmon.agent.worker;
+
+import java.util.Date;
+import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
+
+import kt.gmon.agent.dao.AgentBatchDao;
+import kt.gmon.agent.dao.gmon.BatchResultDao;
+import kt.gmon.agent.dto.gmon.BatchDto;
+import kt.gmon.agent.dto.gmon.BatchResultDto;
+import kt.gmon.agent.schedule.DbBatchManager;
+import kt.gmon.agent.schedule.GmonWorker;
+import kt.gmon.agent.util.MyTimeUtil;
+
+@Component
+@Scope("prototype")
+public class BatchWorker  extends GmonWorker {
+
+	private Logger log = LoggerFactory.getLogger(BatchWorker.class);
+	
+	@Autowired
+	private BatchResultDao resultDao;   // 공용 리소스 
+	
+	@Autowired
+	private AgentBatchDao  agentBatchDao;  // 공용 리소스
+	
+	private String sdate;
+	private String edate;
+	private final static int LATENCY= 3600000; // 1시간
+	
+	// 필수 호출
+	public void initConf(BatchDto  batch) {
+		super.initConf(batch);
+		try {
+			agentBatchDao.initSql(taskConf.getConnId());
+		} catch (Exception e) {
+			e.printStackTrace();
+			log.error(e.getMessage(),e);
+		}
+		log.info(" @@@@@@ Reconfiguration : "+ taskConf );
+	}
+
+	public void run(){		
+		log.info(getBatchConf().getName() + " task_id ="+ taskConf.getTaskId() + "] #######" + getBatchConf().getRepUnit() + getBatchConf().makeCron());//+ work.getQuery());
+		if(isValidTime()){
+			initDate();			
+			try {
+				workBatchList();
+			} catch (Exception e) {
+				e.printStackTrace();
+				log.error(e.getMessage(),e);
+			}
+		}		
+	}
+
+	private BatchDto getBatchConf(){
+		return (BatchDto) taskConf;
+	}
+	
+	private void workBatchList() throws Exception {
+		
+		List<BatchResultDto> retData = agentBatchDao.execBatchList(getBatchConf(), sdate, edate);  // 대상 DB에서 batch 검사	
+		log.info(getBatchConf().getName() +" -batch worker : orginal data size ="+ (retData != null?retData.size():0) );
+		resultDao.saveBatchList(retData, getBatchConf());			// 결과 Mon DB에 저장
+	}
+
+	
+	private void initDate() {
+		long tmpLong = System.currentTimeMillis() + LATENCY;
+		if(edate == null){
+			log.info(getBatchConf().getName() +" init date first ###################");
+			long sdate_long = tmpLong - getBatchConf().getSavePeriod();
+			edate = MyTimeUtil.getHourStr(new Date(tmpLong));
+			sdate = MyTimeUtil.getHourStr(new Date(sdate_long));
+		}else {
+			
+			sdate = edate;
+			edate = MyTimeUtil.getHourStr(new Date(tmpLong));
+			if(sdate.equals(edate)){
+				long sdate_long = tmpLong - getBatchConf().getSavePeriod();
+				sdate = MyTimeUtil.getHourStr(new Date(sdate_long));			
+			}
+		}
+		log.info(getBatchConf().getName() +" date continue ############# "+ sdate + " => "+ edate);
+	}
+
+}
