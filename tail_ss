@@ -1,0 +1,166 @@
+Enter file contents herepackage kt.gmon.agent.dao.log;
+
+import org.apache.commons.io.input.TailerListenerAdapter;
+
+public class ExceptListener extends TailerListenerAdapter {
+	
+	private boolean STARTED=false;
+	private boolean ENDED= false;
+	private boolean ISAT= false;
+	
+	private static final String EXCEPT_MATCH= "\\w.*\\w*Exception: .*"; //"[\\.][\\w]{1,}Exception: ";
+	private static final String END_MATCH= "^\\t... \\d* more$";
+
+	private String exceptStr="";
+
+	
+	@Override
+	public void handle(String line) {
+		//System.out.println(line);
+		if(searchExcept(line)){
+			exceptStr += line +"\r\n";
+			//System.out.println(line);
+		}
+		if(ENDED){
+			System.out.println("#### start ###########");
+			System.out.println(exceptStr);
+			System.out.println("##### end ##########");
+			init();			
+		}
+	}
+	
+	private void init() {
+		STARTED=false; 
+		ENDED= false;  		
+		ISAT= false; 
+		exceptStr="";
+	}
+
+	private boolean searchExcept(String line){
+		if(STARTED){
+			if(line.matches(END_MATCH)){
+				ENDED = true;
+			} else if(ISAT && (!line.startsWith("\tat ") && !line.startsWith("Caused by: ")) ){
+				ENDED = true;
+				return false;
+			} else if(!ISAT && line.startsWith("\tat ")){
+				ISAT = true;
+			} 
+			return true;
+		}else if(line.matches(EXCEPT_MATCH)){
+			STARTED = true;
+			return true;
+		}else {
+			return false;
+		}
+	}
+	
+  public static final String EXAMPLE_TEST = "This is my small example "
+	      + "string which I'm.going.to " + "use for pattern com matching.xxYY cfas:dfs";
+
+  public static void main(String[] args) {
+    System.out.println(EXAMPLE_TEST.matches("\\w.*\\w*YY .*"));
+
+  }
+
+	
+}
+
+
+package kt.gmon.agent.dao.log;
+
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+
+public class LogReader {
+
+	private File srcFile;
+	private String fileName;
+	
+	public LogReader(String fileName){
+		this.fileName = fileName;
+		srcFile = new File(fileName);
+	}
+	
+	public void tail() throws FileNotFoundException, IOException {
+		
+		Process p = Runtime.getRuntime().exec("tail -f "+fileName);
+		
+	    BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()));
+	    StringBuilder s = new StringBuilder();
+	    while(true){
+	    	String line=reader.readLine();
+	    	if(line != null){
+	    		//s.append(line+'\n');
+	    		System.out.println(line);
+	    	}
+	    }
+	}
+	
+	public void run(){
+		while(true){
+			try{
+				tail();
+			}catch(Exception e){
+				e.printStackTrace();
+				
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+			}
+		}
+	}
+	
+	
+	public static void main(String[] arg){
+		LogReader reader =new LogReader("C:\\kt_proj\\logs\\app.log");
+		reader.run();
+	}
+}
+
+package kt.gmon.agent.dao.log;
+
+import java.io.File;
+
+import org.apache.commons.io.input.Tailer;
+import org.apache.commons.io.input.TailerListener;
+import org.apache.commons.io.input.TailerListenerAdapter;
+
+public class LogTailTest {
+
+	public void restart(){
+		TailerListener listener = new ExceptListener();
+		File file = new File("C:\\kt_proj\\logs\\app.log");
+
+		Tailer tailer = new Tailer(file, listener, 1000, false, true);		
+	}
+	
+	
+	public static void main(String args[]) {
+
+		TailerListener listener = new ExceptListener();
+		File file = new File("C:\\kt_proj\\logs\\app.log");
+
+		Tailer tailer = new Tailer(file, listener, 1000, false, true);
+		//tailer.run();
+		Thread worker = new Thread(tailer);
+		worker.start();
+		//worker.join();
+
+		System.out.println(" work ended !!!");
+		//		try {
+//			Thread.sleep(10000);
+//		} catch (InterruptedException ex) {
+//			Thread.currentThread().interrupt();
+//		}
+
+		//tailer.stop();
+	}
+}
