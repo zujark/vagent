@@ -1,0 +1,152 @@
+Enter file contents herepackage kt.gmon.agent.worker;
+
+import java.util.ArrayList;
+import java.util.Hashtable;
+import java.util.List;
+
+import javax.annotation.PostConstruct;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
+
+import kt.gmon.agent.conf.AgentConf;
+import kt.gmon.agent.conf.ManagerDbConf;
+import kt.gmon.agent.dao.AgentDbSqlDao;
+import kt.gmon.agent.dao.gmon.LongSqlDao;
+import kt.gmon.agent.dto.SqlLockSessionDto;
+import kt.gmon.agent.dto.SqlSessionDto;
+import kt.gmon.agent.dto.gmon.TaskDto;
+import kt.gmon.agent.schedule.GmonWorker;
+
+
+@Component
+@Scope("prototype")
+public class DbSqlWorker extends GmonWorker {
+
+	private Logger log = LoggerFactory.getLogger(DbSqlWorker.class);
+	
+	@Autowired
+	AgentConf confdao;
+	
+	@Autowired
+	AgentDbSqlDao queryDao;   // agent
+	
+	@Autowired
+	LongSqlDao longSqlDao;    // mon db
+
+	private Hashtable<String, SqlSessionDto> old_data = null;
+	private Hashtable<String, SqlSessionDto> cur_data = null;
+
+	private List<SqlSessionDto> longQuerys;
+	
+	private int LongTime;
+	//private int task_id;
+	
+	// 초기함수 필수 호출
+	public void initConf(TaskDto taskConf){
+		super.initConf(taskConf);
+		try {
+			queryDao.initSql(taskConf.getConnId(), taskConf.getTaskId());
+		} catch (Exception e) {
+			e.printStackTrace();
+			log.error(e.getMessage(),e);
+		}
+		log.info(" @@@@@@ Reconfiguration : "+ taskConf + "\r\n"+ queryDao.getSqlQuery() + "\r\n" + queryDao.getSqlLockQuery() );
+	}
+	
+	@Override
+	public void run() {
+		if(!isValidTime()) return;
+		
+		log.info(" %%%%%%%%% started  period = " + taskConf.getRepUnit());	
+		if(old_data == null){
+			initConf();
+		}
+		
+		//
+		List<SqlSessionDto> sqls = queryDao.list();
+		if(sqls == null || sqls.size() < 1) return;
+
+		for(SqlSessionDto sql : sqls){
+			if(sql == null) continue;			
+			//SqlSessionDto tmpSql = addToHash(sql);
+			addToLong(sql);			
+		}
+		
+		log.info(" Sql long Session Size = "+ longQuerys.size());
+		
+		reset_data();		
+		saveLongQuery();
+		saveLockQuery();
+				
+	}
+
+	private void saveLockQuery() {
+		List<SqlLockSessionDto> sqlLocks = queryDao.listLock();
+		if(sqlLocks != null) log.info(" Sql Lock Session Size = "+ sqlLocks.size());
+		else return;
+		
+		if(sqlLocks.size() > 0){
+			try{
+				longSqlDao.execLockBatch(sqlLocks, confdao.getAgent_id(), taskConf.getTaskId());
+			}catch(Exception e){
+				e.printStackTrace();
+				log.error(e.getMessage(), e);
+			}finally{
+				sqlLocks.clear();
+			}
+		}
+	}
+	
+	private void saveLongQuery() {
+		if(longQuerys != null && longQuerys.size() > 0){
+			try{
+				longSqlDao.execBatch(longQuerys, confdao.getAgent_id(), taskConf.getTaskId());
+			}catch(Exception e){
+				e.printStackTrace();
+				log.error(e.getMessage(), e);
+			}finally{
+				longQuerys.clear();
+			}
+		}
+	}
+
+	private void addToLong(SqlSessionDto tmpSql) {
+		if(tmpSql.getSessionTime() >= LongTime){   // TODO for test 
+			longQuerys.add(tmpSql);
+		}
+	}
+
+	private void reset_data() {
+		old_data.clear();
+		Hashtable<String, SqlSessionDto> tmp_data = old_data;
+		old_data = cur_data;
+		cur_data = tmp_data;
+		
+		log.info(this + " sqldata :  current = "+ ((Object)cur_data) + "  old = "+ ((Object)old_data) );
+	}
+
+	private SqlSessionDto addToHash(SqlSessionDto sql) {
+		SqlSessionDto oldsql = old_data.get(sql.getSqlhash());  // TODO hash 기준
+		if(oldsql == null){
+			cur_data.put(sql.getSqlhash(), sql);
+			return sql;
+		}else {
+			cur_data.put(oldsql.getSqlhash(), sql);
+			return sql;
+		}		
+	}
+
+	private void initConf(){
+		old_data = new Hashtable<>();
+		cur_data = new Hashtable<>();
+
+		longQuerys = new ArrayList<>();
+		if(queryDao.getSqlQuery() != null)	LongTime = queryDao.getSqlQuery().getLonglimit();
+	}
+	
+	
+}
