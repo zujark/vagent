@@ -1,0 +1,45 @@
+Enter file contents herepackage kt.gmon.agent.domain;
+
+public interface VarDef {
+
+	public final static String MON_Period="MON";
+	public final static String DAY_Period="DAY";
+	public final static String HOUR_Period="HOUR";
+	public final static String MIN_Period="MIN";
+	public final static String SEC_Period="SEC";
+	
+	public final static String DB_SQL_QUERY="SQL";
+	public static final String SESS_QUERY = "SESS_SQL";	
+	public static final String LOCK_QUERY = "LOCK_SQL";	
+	public final static String DB_USE_QUERY="DBUSE";
+	 public final static String DB_TAB_QUERY="TAB";
+	 public final static String DB_TABSP_QUERY="TBSP";
+	
+	public final static String AG_SVC_BATCH= "BATCH";
+	public final static String AG_SVC_INTERFACE= "INF";
+	public final static String AG_SVC_CONSISTENCY= "CONSY";
+	
+	
+	public final static String AG_SVC_DB= "DBUSE";
+	public final static String AG_SVC_SQL= "SQL";
+	public final static String AG_SVC_SERVER= "SERVER";
+	public final static String AG_SVC_SERVICE= "SERVICE";
+	public final static String AG_SVC_WEBSESS= "WEBSESS";
+	public final static String AG_SVC_WEBAPP= "WEBAPP";
+	public final static String AG_SVC_SYS= "SYS";
+
+	public static final int TASK_CHANGE = 1;
+	public static final int BATCH_ONLY_CHANGE = 2;
+	public static final int WEB_ONLY_CHANGE = 3;
+	
+	public static final int BATCH_CHANGE = 11;	
+	public static final int DB_CHANGE = 12;
+	public static final int SQL_CHANGE = 13;
+	public static final int SERVICE_CHANGE = 14;
+	public static final int WEB_CHANGE = 15;
+	public static final int SYS_CHANGE = 16;
+	
+	public static final String SVC_DB_NAME = "DB 가용성";
+
+	
+}
