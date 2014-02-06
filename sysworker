@@ -1,0 +1,78 @@
+Enter file contents herepackage kt.gmon.agent.worker;
+
+import java.util.Hashtable;
+
+import javax.annotation.PostConstruct;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
+import kt.gmon.agent.conf.FileConfig;
+import kt.gmon.agent.dao.SysInfoParserDao;
+import kt.gmon.agent.dao.gmon.SysInfoDao;
+import kt.gmon.agent.dto.gmon.ServiceDto;
+import kt.gmon.agent.dto.gmon.SysInfoDto;
+import kt.gmon.agent.dto.gmon.TaskDto;
+import kt.gmon.agent.schedule.GmonWorker;
+import kt.gmon.agent.schedule.TaskManager;
+
+@Component
+public class SysWorker extends GmonWorker {
+
+	private Logger log = LoggerFactory.getLogger(SysWorker.class);
+	
+	@Autowired
+	TaskManager taskManager;
+	
+	@Autowired
+	SysInfoDao sysInfoDao;
+	
+	@Autowired
+	SysInfoParserDao sysParser;
+	
+	@Autowired
+	FileConfig fileConf;	
+
+	private Hashtable<String, ServiceDto> svcData;
+	
+	@PostConstruct
+	public void initConf(){
+		svcData = new Hashtable<>();
+	}
+	
+	public void initConf(TaskDto taskConf){
+		super.initConf(taskConf);
+		sysParser.initDbCommand(taskConf.getCommand());
+		log.info(" @@@@@@ Reconfiguration : "+ taskConf );
+	}
+	
+	
+	@Override
+	public void run() {
+		//if(!isValidTime()) return;
+		
+		SysInfoDto sysinfo = sysParser.parseSysInfo();
+		sysinfo.setTaskId(this.taskConf.getTaskId());
+		try {
+			sysInfoDao.addSms(sysinfo, svcData, fileConf.getAgent_id());
+		} catch (Exception e) {
+			e.printStackTrace();
+			log.error(e.getMessage(), e);
+		}
+		
+		log.info(" ###### System Resource ###### period " + (taskConf != null?taskConf.getRepUnit():"base"));
+	}
+
+	public void upsertSvcDataFlag(ServiceDto svcflag) {
+		ServiceDto tmp = svcData.get(svcflag.getKey());
+		if(tmp == null) svcData.put(svcflag.getKey(), svcflag);
+		else {
+			tmp.setState(svcflag.getState());
+			tmp.setCtime(svcflag.getCtime());
+		}
+	}
+
+	
+}
